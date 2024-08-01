@@ -73,12 +73,16 @@ def struct(self:Client,
 @delegates(Client.struct)
 def struct(self:Chat,
              resp_model: BaseModel, # Non-initialized pydantic struct
+             treat_as_output=True, # Usually using a tool
              **kwargs) -> BaseModel:
     self._append_pr(kwargs.pop("pr", None))
     res = self.c.struct(self.h, resp_model=resp_model, **kwargs)
-    r = self.c.result
-    tool_id = contents(r).id
-    msgs = [mk_msg(r, "assistant"),
-            mk_msg([mk_funcres(tool_id, res)], "user")]
+    if treat_as_output:
+        msgs = [mk_msg(repr(res), "assistant")]
+    else:
+        r = self.c.result
+        tool_id = contents(r).id
+        msgs = [mk_msg(r, "assistant"),
+                mk_msg([mk_funcres(tool_id, res)], "user")]
     self.h += msgs
     return res
