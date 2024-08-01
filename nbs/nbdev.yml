@@ -1,0 +1,9 @@
+project:
+  output-dir: _docs
+
+website:
+  title: "claudette-pydantic"
+  site-url: "https://tom-pollak.github.io/claudette-pydantic"
+  description: ""
+  repo-branch: main
+  repo-url: "https://github.com/tom-pollak/claudette-pydantic"
