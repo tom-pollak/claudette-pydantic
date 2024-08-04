@@ -64,7 +64,10 @@ has a list of discriminated unions, shown by `pet_type`. For each object
 the model is required to return different things.
 
 You should be able to use the full power of Pydantic here. I’ve found
-that instructor for Claude fails on this example
+that instructor for Claude fails on this example.
+
+Each sub BaseModel may also have docstrings describing usage. I’ve found
+prompting this way to be quite reliable.
 
 ``` python
 class Cat(BaseModel):
@@ -81,25 +84,25 @@ class Reptile(BaseModel):
     pet_type: Literal['lizard', 'dragon']
     scales: bool
 
+# Dummy to show doc strings
+class Create(BaseModel):
+    "Pass as final member of the `pet` list to indicate success"
+    pet_type: Literal['create']
 
 class OwnersPets(BaseModel):
     """
     Information for to gather for an Owner's pets
     """
-    pet: List[Union[Cat, Dog, Reptile]] = Field(..., discriminator='pet_type')
+    pet: List[Union[Cat, Dog, Reptile, Create]] = Field(..., discriminator='pet_type')
 
 chat = Chat(model)
 pr = "hello I am a new owner and I would like to add some pets for me. I have a dog which has 6 barks, a dragon with no scales, and a cat with 2 meows"
-chat.struct(OwnersPets, pr=pr)
+print(repr(chat.struct(OwnersPets, pr=pr)))
+print(repr(chat.struct(OwnersPets, pr="actually my dragon does have scales, can you change that for me?")))
 ```
 
-    OwnersPets(pet=[Dog(pet_type='dog', barks=6.0), Reptile(pet_type='dragon', scales=False), Cat(pet_type='cat', meows=2)])
-
-``` python
-chat.struct(OwnersPets, pr="actually my dragon does have scales, can you change that for me?")
-```
-
-    OwnersPets(pet=[Dog(pet_type='dog', barks=6.0), Reptile(pet_type='dragon', scales=True), Cat(pet_type='cat', meows=2)])
+    OwnersPets(pet=[Dog(pet_type='dog', barks=6.0), Reptile(pet_type='dragon', scales=False), Cat(pet_type='cat', meows=2), Create(pet_type='create')])
+    OwnersPets(pet=[Dog(pet_type='dog', barks=6.0), Reptile(pet_type='dragon', scales=True), Cat(pet_type='cat', meows=2), Create(pet_type='create')])
 
 While the struct uses tool use to enforce the schema, we save in history
 as the `repr` response to keep the user,assistant,user flow.
@@ -113,13 +116,13 @@ chat.h
         'text': 'hello I am a new owner and I would like to add some pets for me. I have a dog which has 6 barks, a dragon with no scales, and a cat with 2 meows'}]},
      {'role': 'assistant',
       'content': [{'type': 'text',
-        'text': "OwnersPets(pet=[Dog(pet_type='dog', barks=6.0), Reptile(pet_type='dragon', scales=False), Cat(pet_type='cat', meows=2)])"}]},
+        'text': "OwnersPets(pet=[Dog(pet_type='dog', barks=6.0), Reptile(pet_type='dragon', scales=False), Cat(pet_type='cat', meows=2), Create(pet_type='create')])"}]},
      {'role': 'user',
       'content': [{'type': 'text',
         'text': 'actually my dragon does have scales, can you change that for me?'}]},
      {'role': 'assistant',
       'content': [{'type': 'text',
-        'text': "OwnersPets(pet=[Dog(pet_type='dog', barks=6.0), Reptile(pet_type='dragon', scales=True), Cat(pet_type='cat', meows=2)])"}]}]
+        'text': "OwnersPets(pet=[Dog(pet_type='dog', barks=6.0), Reptile(pet_type='dragon', scales=True), Cat(pet_type='cat', meows=2), Create(pet_type='create')])"}]}]
 
 Alternatively you can use struct as tool use flow with
 `treat_as_output=False` (but requires the next input to be assistant)
@@ -133,11 +136,11 @@ chat.h[-3:]
       'content': [{'type': 'text',
         'text': 'hello I am a new owner and I would like to add some pets for me. I have a dog which has 6 barks, a dragon with no scales, and a cat with 2 meows'}]},
      {'role': 'assistant',
-      'content': [ToolUseBlock(id='toolu_01QwvZBqPf5kwQX6vGUHD7tE', input={'pet': [{'pet_type': 'dog', 'barks': 6}, {'pet_type': 'dragon', 'scales': False}, {'pet_type': 'cat', 'meows': 2}]}, name='OwnersPets', type='tool_use')]},
+      'content': [ToolUseBlock(id='toolu_015ggQ1iH6BxBffd7erj3rjR', input={'pet': [{'pet_type': 'dog', 'barks': 6.0}, {'pet_type': 'dragon', 'scales': False}, {'pet_type': 'cat', 'meows': 2}]}, name='OwnersPets', type='tool_use')]},
      {'role': 'user',
       'content': [{'type': 'tool_result',
-        'tool_use_id': 'toolu_01QwvZBqPf5kwQX6vGUHD7tE',
-        'content': "pet=[Dog(pet_type='dog', barks=6.0), Reptile(pet_type='dragon', scales=False), Cat(pet_type='cat', meows=2)]"}]}]
+        'tool_use_id': 'toolu_015ggQ1iH6BxBffd7erj3rjR',
+        'content': "OwnersPets(pet=[Dog(pet_type='dog', barks=6.0), Reptile(pet_type='dragon', scales=False), Cat(pet_type='cat', meows=2)])"}]}]
 
 (So I couldn’t prompt it again here, next input would have to be an
 assistant)
@@ -158,13 +161,14 @@ class User(BaseModel):
             'examples': ['Monkey!123'],
         }
     )
-res = c.struct(msgs=["Can you create me a new user for tom age 22"], resp_model=User, sp="for a given user, generate a similar password based on examples")
-print(res)
+print(repr(c.struct(msgs=["Can you create me a new user for tom age 22"], resp_model=User, sp="for a given user, generate a similar password based on examples")))
 ```
 
-    age=22 name='tom' password='Monkey!123'
+    User(age=22, name='tom', password='Monkey!123')
 
 Uses the few-shot example as asked for in the system prompt.
+
+You can find more examples [nbs/examples](nbs/examples)
 
 ## Signature:
 
