@@ -10,7 +10,11 @@
 claudette_pydantic provides the `struct` method in the `Client` and
 `Chat` of claudette
 
-`struct` provides a wrapper around `__call__`. Provide a
+`struct` provides a wrapper around `__call__`. Provide a Pydantic
+`BaseModel` as schema, and the model will return an initialized
+`BaseModel` object.
+
+I’ve found Haiku to be quite reliable at even complicated schemas.
 
 ## Install
 
@@ -23,8 +27,8 @@ pip install claudette_pydantic
 ``` python
 from claudette.core import *
 import claudette_pydantic
-from pydantic import BaseModel, Field, ValidationError
-from typing import Literal, Union, List, Optional
+from pydantic import BaseModel, Field
+from typing import Literal, Union, List
 ```
 
 ``` python
@@ -33,6 +37,8 @@ model
 ```
 
     'claude-3-haiku-20240307'
+
+### Simple Model
 
 ``` python
 class Pet(BaseModel):
@@ -50,8 +56,15 @@ print(repr(c.struct(msgs="Tom: my cat is juma and he's 16 years old", resp_model
     Pet(name='Mac', age=14, owner='NA', type='dog')
     Pet(name='juma', age=16, owner='Tom', type='cat')
 
+### Chat & Unions
+
 We can go way deeper, for example this one I pulled from [pydantic
 docs](https://docs.pydantic.dev/latest/concepts/unions/#discriminated-unions)
+has a list of discriminated unions, shown by `pet_type`. For each object
+the model is required to return different things.
+
+You should be able to use the full power of Pydantic here. I’ve found
+that instructor for Claude fails on this example
 
 ``` python
 class Cat(BaseModel):
@@ -82,8 +95,14 @@ chat.struct(OwnersPets, pr=pr)
 
     OwnersPets(pet=[Dog(pet_type='dog', barks=6.0), Reptile(pet_type='dragon', scales=False), Cat(pet_type='cat', meows=2)])
 
-While the struct uses tool use to enforce the schema, we save the tool
-use as json to keep the user,assistant,user flow.
+``` python
+chat.struct(OwnersPets, pr="actually my dragon does have scales, can you change that for me?")
+```
+
+    OwnersPets(pet=[Dog(pet_type='dog', barks=6.0), Reptile(pet_type='dragon', scales=True), Cat(pet_type='cat', meows=2)])
+
+While the struct uses tool use to enforce the schema, we save in history
+as the `repr` response to keep the user,assistant,user flow.
 
 ``` python
 chat.h
@@ -94,17 +113,15 @@ chat.h
         'text': 'hello I am a new owner and I would like to add some pets for me. I have a dog which has 6 barks, a dragon with no scales, and a cat with 2 meows'}]},
      {'role': 'assistant',
       'content': [{'type': 'text',
-        'text': "OwnersPets(pet=[Dog(pet_type='dog', barks=6.0), Reptile(pet_type='dragon', scales=False), Cat(pet_type='cat', meows=2)])"}]}]
+        'text': "OwnersPets(pet=[Dog(pet_type='dog', barks=6.0), Reptile(pet_type='dragon', scales=False), Cat(pet_type='cat', meows=2)])"}]},
+     {'role': 'user',
+      'content': [{'type': 'text',
+        'text': 'actually my dragon does have scales, can you change that for me?'}]},
+     {'role': 'assistant',
+      'content': [{'type': 'text',
+        'text': "OwnersPets(pet=[Dog(pet_type='dog', barks=6.0), Reptile(pet_type='dragon', scales=True), Cat(pet_type='cat', meows=2)])"}]}]
 
-Continue the conversation…
-
-``` python
-chat.struct(OwnersPets, pr="actually my dragon does have scales, can you change that for me?")
-```
-
-    OwnersPets(pet=[Dog(pet_type='dog', barks=6.0), Reptile(pet_type='dragon', scales=True), Cat(pet_type='cat', meows=2)])
-
-Alternatively you can use the original tool use flow with
+Alternatively you can use struct as tool use flow with
 `treat_as_output=False` (but requires the next input to be assistant)
 
 ``` python
@@ -116,11 +133,16 @@ chat.h[-3:]
       'content': [{'type': 'text',
         'text': 'hello I am a new owner and I would like to add some pets for me. I have a dog which has 6 barks, a dragon with no scales, and a cat with 2 meows'}]},
      {'role': 'assistant',
-      'content': [ToolUseBlock(id='toolu_015Kyxycj43DBej69qRZ8jaL', input={'pet': [{'pet_type': 'dog', 'barks': 6}, {'pet_type': 'dragon', 'scales': False}, {'pet_type': 'cat', 'meows': 2}]}, name='OwnersPets', type='tool_use')]},
+      'content': [ToolUseBlock(id='toolu_01QwvZBqPf5kwQX6vGUHD7tE', input={'pet': [{'pet_type': 'dog', 'barks': 6}, {'pet_type': 'dragon', 'scales': False}, {'pet_type': 'cat', 'meows': 2}]}, name='OwnersPets', type='tool_use')]},
      {'role': 'user',
       'content': [{'type': 'tool_result',
-        'tool_use_id': 'toolu_015Kyxycj43DBej69qRZ8jaL',
+        'tool_use_id': 'toolu_01QwvZBqPf5kwQX6vGUHD7tE',
         'content': "pet=[Dog(pet_type='dog', barks=6.0), Reptile(pet_type='dragon', scales=False), Cat(pet_type='cat', meows=2)]"}]}]
+
+(So I couldn’t prompt it again here, next input would have to be an
+assistant)
+
+### User Creation & few-shot examples
 
 You can even add few shot examples *for each input*
 
@@ -142,7 +164,9 @@ print(res)
 
     age=22 name='tom' password='Monkey!123'
 
-### Signature:
+Uses the few-shot example as asked for in the system prompt.
+
+## Signature:
 
 ``` python
 Client.struct(
