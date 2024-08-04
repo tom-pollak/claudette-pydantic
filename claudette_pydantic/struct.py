@@ -78,12 +78,11 @@ def struct(self:Chat,
     self._append_pr(kwargs.pop("pr", None))
     res = self.c.struct(self.h, resp_model=resp_model, **kwargs)
     if treat_as_output:
-        res_json = repr(res) # alternatively: res.json()
-        msgs = [mk_msg(res_json, "assistant")]
+        msgs = [mk_msg(repr(res), "assistant")] # alternatively: res.json()
     else:
         r = self.c.result
         tool_id = contents(r).id
         msgs = [mk_msg(r, "assistant"),
-                mk_msg([mk_funcres(tool_id, res)], "user")]
+                mk_msg([mk_funcres(tool_id, repr(res))], "user")]
     self.h += msgs
     return res
