@@ -58,7 +58,7 @@ def _mk_struct(inp, resp_model) -> BaseModel:
 @delegates(Client.__call__)
 def struct(self:Client,
              msgs:list, # List of messages in the dialog
-             resp_model: BaseModel, # Non-initialized pydantic struct
+             resp_model: type[BaseModel], # Non-initialized pydantic struct
              **kwargs
           ) -> BaseModel: # Initialized pydantic struct
     "Parse Claude output into the Pydantic `resp_model`"
@@ -72,13 +72,14 @@ def struct(self:Client,
 @patch
 @delegates(Client.struct)
 def struct(self:Chat,
-             resp_model: BaseModel, # Non-initialized pydantic struct
+             resp_model: type[BaseModel], # Non-initialized pydantic struct
              treat_as_output=True, # Usually using a tool
              **kwargs) -> BaseModel:
     self._append_pr(kwargs.pop("pr", None))
     res = self.c.struct(self.h, resp_model=resp_model, **kwargs)
     if treat_as_output:
-        msgs = [mk_msg(repr(res), "assistant")]
+        res_json = repr(res) # alternatively: res.json()
+        msgs = [mk_msg(res_json, "assistant")]
     else:
         r = self.c.result
         tool_id = contents(r).id
