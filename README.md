@@ -7,6 +7,11 @@
 > [claudette](https://github.com/AnswerDotAI/claudette) through function
 > calling
 
+claudette_pydantic provides the `struct` method in the `Client` and
+`Chat` of claudette
+
+`struct` provides a wrapper around `__call__`. Provide a
+
 ## Install
 
 ``` sh
@@ -14,9 +19,6 @@ pip install claudette_pydantic
 ```
 
 ## Getting Started
-
-claudette_pydantic patches the `struct` method in the `Client` and
-`Chat` of claudette
 
 ``` python
 from claudette.core import *
@@ -39,20 +41,17 @@ class Pet(BaseModel):
     age: int
     owner: str = Field(default="NA", description="Owner name. Do not return if not given.")
     type: Literal['dog', 'cat', 'mouse']
-```
 
-``` python
 c = Client(model)
-c.struct(msgs="Can you make a pet for my dog Mac? He's an old boy (14 years old!)", resp_model=Pet)
+print(repr(c.struct(msgs="Can you make a pet for my dog Mac? He's 14 years old", resp_model=Pet)))
+print(repr(c.struct(msgs="Tom: my cat is juma and he's 16 years old", resp_model=Pet)))
 ```
 
     Pet(name='Mac', age=14, owner='NA', type='dog')
+    Pet(name='juma', age=16, owner='Tom', type='cat')
 
-``` python
-c.result.content[0].input
-```
-
-    {'name': 'Mac', 'age': 14, 'type': 'dog', 'owner': 'NA'}
+We can go way deeper, for example this one I pulled from [pydantic
+docs](https://docs.pydantic.dev/latest/concepts/unions/#discriminated-unions)
 
 ``` python
 class Cat(BaseModel):
@@ -71,38 +70,94 @@ class Reptile(BaseModel):
 
 
 class OwnersPets(BaseModel):
-    "List of pets that for an owner"
-    pet: List[Union[Cat, Dog, Lizard]] = Field(..., discriminator='pet_type')
+    """
+    Information for to gather for an Owner's pets
+    """
+    pet: List[Union[Cat, Dog, Reptile]] = Field(..., discriminator='pet_type')
+
+chat = Chat(model)
+pr = "hello I am a new owner and I would like to add some pets for me. I have a dog which has 6 barks, a dragon with no scales, and a cat with 2 meows"
+chat.struct(OwnersPets, pr=pr)
 ```
 
+    OwnersPets(pet=[Dog(pet_type='dog', barks=6.0), Reptile(pet_type='dragon', scales=False), Cat(pet_type='cat', meows=2)])
+
+While the struct uses tool use to enforce the schema, we save the tool
+use as json to keep the user,assistant,user flow.
+
 ``` python
-class ChatResponse(BaseModel):
-    response_type: Literal['message']
-    message: str = Field(description="Support response to the user query.")
-
-class ChatResult(BaseModel):
-    response_type: Literal['finish']
-    success: bool = Field(description="Respond if the owner has given all the information to check in their pets, *or* cacnelled the process")
-
-class SupportRequest(BaseModel):
-    "Respond to a owner request"
-    res: Union[ChatResponse, ChatResult] = Field(..., discriminator='response_type')
+chat.h
 ```
 
+    [{'role': 'user',
+      'content': [{'type': 'text',
+        'text': 'hello I am a new owner and I would like to add some pets for me. I have a dog which has 6 barks, a dragon with no scales, and a cat with 2 meows'}]},
+     {'role': 'assistant',
+      'content': [{'type': 'text',
+        'text': "OwnersPets(pet=[Dog(pet_type='dog', barks=6.0), Reptile(pet_type='dragon', scales=False), Cat(pet_type='cat', meows=2)])"}]}]
+
+Continue the conversation…
+
 ``` python
-chat = Chat(
-    models[1],
-    sp="You are a vet helpdesk, helping owners check in their pets",
-    cont_pr="perform the tool using the information above" # filled as the user prompt when one is not provided (e.g. `Chat.struct(OwnerPets)`)
-)
-res = chat.struct(SupportRequest, pr="hello I am a new owner and I would like to add some pets for me. I have a dog which has 6 barks, a dragon with 10 scales, and a cat with 2 meows")
+chat.struct(OwnersPets, pr="actually my dragon does have scales, can you change that for me?")
 ```
 
-    res=ChatResponse(response_type='message', message="Hello and welcome! I'd be happy to help you add your pets. However, I need to clarify a few things about the information you've provided. We typically don't measure pets by their barks, scales, or meows. Let's go through your pets one by one to get the information we need:\n\n1. Your dog: We'll need information like its name, breed, age, and any specific care instructions.\n2. Your dragon: I'm afraid we don't actually accommodate dragons as pets in our system. Could you clarify if this is a specific type of reptile or if it's a stuffed animal?\n3. Your cat: Similar to the dog, we'll need its name, breed, age, and any special care instructions.\n\nCould you please provide more details about your dog and cat? And could you clarify what you meant by 'dragon'? Once we have this information, I can help you add your pets to our system.")
+    OwnersPets(pet=[Dog(pet_type='dog', barks=6.0), Reptile(pet_type='dragon', scales=True), Cat(pet_type='cat', meows=2)])
 
-    OwnersPets(pet=[Dog(pet_type='dog', barks=6.0), Lizard(pet_type='lizard', scales=True), Cat(pet_type='cat', meows=2)])
+Alternatively you can use the original tool use flow with
+`treat_as_output=False` (but requires the next input to be assistant)
 
 ``` python
+chat.struct(OwnersPets, pr=pr, treat_as_output=False)
+chat.h[-3:]
+```
+
+    [{'role': 'user',
+      'content': [{'type': 'text',
+        'text': 'hello I am a new owner and I would like to add some pets for me. I have a dog which has 6 barks, a dragon with no scales, and a cat with 2 meows'}]},
+     {'role': 'assistant',
+      'content': [ToolUseBlock(id='toolu_015Kyxycj43DBej69qRZ8jaL', input={'pet': [{'pet_type': 'dog', 'barks': 6}, {'pet_type': 'dragon', 'scales': False}, {'pet_type': 'cat', 'meows': 2}]}, name='OwnersPets', type='tool_use')]},
+     {'role': 'user',
+      'content': [{'type': 'tool_result',
+        'tool_use_id': 'toolu_015Kyxycj43DBej69qRZ8jaL',
+        'content': "pet=[Dog(pet_type='dog', barks=6.0), Reptile(pet_type='dragon', scales=False), Cat(pet_type='cat', meows=2)]"}]}]
+
+You can even add few shot examples *for each input*
+
+``` python
+class User(BaseModel):
+    "User creation tool"
+    age: int = Field(description='Age of the user')
+    name: str = Field(title='Username')
+    password: str = Field(
+        json_schema_extra={
+            'title': 'Password',
+            'description': 'Password of the user',
+            'examples': ['Monkey!123'],
+        }
+    )
+res = c.struct(msgs=["Can you create me a new user for tom age 22"], resp_model=User, sp="for a given user, generate a similar password based on examples")
 print(res)
-chat.struct(OwnersPets)
+```
+
+    age=22 name='tom' password='Monkey!123'
+
+### Signature:
+
+``` python
+Client.struct(
+    self: claudette.core.Client,
+    msgs: list,
+    resp_model: type[BaseModel], # non-initialized Pydantic BaseModel
+    **, # Client.__call__ kwargs...
+) -> BaseModel
+```
+
+``` python
+Chat.struct(
+    self: claudette.core.Chat,
+    resp_model: type[BaseModel], # non-initialized Pydantic BaseModel
+    treat_as_output=True, # In chat history, tool is reflected
+    **, # Chat.__call__ kwargs...
+) -> BaseModel
 ```
