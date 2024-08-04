@@ -19,7 +19,7 @@ I’ve found Haiku to be quite reliable at even complicated schemas.
 ## Install
 
 ``` sh
-pip install claudette_pydantic
+pip install claudette-pydantic
 ```
 
 ## Getting Started
