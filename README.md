@@ -26,7 +26,7 @@ pip install claudette_pydantic
 
 ``` python
 from claudette.core import *
-import claudette_pydantic
+import claudette_pydantic # patches claudette with `struct`
 from pydantic import BaseModel, Field
 from typing import Literal, Union, List
 ```
@@ -37,8 +37,6 @@ model
 ```
 
     'claude-3-haiku-20240307'
-
-### Simple Model
 
 ``` python
 class Pet(BaseModel):
@@ -56,9 +54,9 @@ print(repr(c.struct(msgs="Tom: my cat is juma and he's 16 years old", resp_model
     Pet(name='Mac', age=14, owner='NA', type='dog')
     Pet(name='juma', age=16, owner='Tom', type='cat')
 
-### Chat & Unions
+## Going Deeper
 
-We can go way deeper, for example this one I pulled from [pydantic
+I pulled this example from [pydantic
 docs](https://docs.pydantic.dev/latest/concepts/unions/#discriminated-unions)
 has a list of discriminated unions, shown by `pet_type`. For each object
 the model is required to return different things.
@@ -168,7 +166,7 @@ print(repr(c.struct(msgs=["Can you create me a new user for tom age 22"], resp_m
 
 Uses the few-shot example as asked for in the system prompt.
 
-You can find more examples [nbs/examples](nbs/examples)
+### You can find more examples [nbs/examples](nbs/examples)
 
 ## Signature:
 
