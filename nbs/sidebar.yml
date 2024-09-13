@@ -1,0 +1,8 @@
+website:
+  sidebar:
+    contents:
+      - index.ipynb
+      - 00_struct.ipynb
+      - section: examples
+        contents:
+          - examples/pet_store.ipynb
