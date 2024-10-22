@@ -1,0 +1,1 @@
+Sitemap: https://tom-pollak.github.io/claudette-pydantic/sitemap.xml
